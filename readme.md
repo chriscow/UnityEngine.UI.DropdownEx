@@ -23,7 +23,10 @@ Then set the `Item Text` property by expanding the `Template/Viewport/Content/It
 
 Thats it!
 
-##Usage
+## Running the Tests
+When you first load the project you will get an error about NUnit.  I didn't include the test assembly folder in the repository figuring you might already have one in your project.  If you don't care about testing (shame shame!), just delete the `Plugins/UnityEngine.UI/UI/Core/DropdownEx/Tests` folder.   To enable testing, go to the `Window > General > Test Runner` menu.  Choose the `PlayMode` button and click `Create PlayMode Test Assembly Folder`.  Then in the Test Runner window, chose the little menu icon in the top right and select `Enable playmode tests for all assemblies` and restart Unity.  Lastly, open the `DropdownEx Test Scene`, go to `File > Build Settings...` and click `Add open scenes`.  You should be able to run the tests now.
+
+## Usage
 
 DropdownEx should behave exactly like the standard Dropdown out of the box.  There are some additional properties and events added and enabling the `MultiSelect` property changes the behavior in some ways.
 
