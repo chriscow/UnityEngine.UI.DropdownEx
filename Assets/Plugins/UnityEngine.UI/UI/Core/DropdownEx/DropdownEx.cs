@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -27,7 +28,7 @@ namespace UnityEngine.UI
         protected internal class DropdownItem : MonoBehaviour, IPointerEnterHandler, ICancelHandler
         {
             [SerializeField]
-            private Text m_Text;
+            private TextMeshProUGUI m_Text;
             [SerializeField]
             private Image m_Image;
             [SerializeField]
@@ -35,7 +36,7 @@ namespace UnityEngine.UI
             [SerializeField]
             private Toggle m_Toggle;
 
-            public Text text { get { return m_Text; } set { m_Text = value; } }
+            public TextMeshProUGUI text { get { return m_Text; } set { m_Text = value; } }
             public Image image { get { return m_Image; } set { m_Image = value; } }
             public RectTransform rectTransform { get { return m_RectTransform; } set { m_RectTransform = value; } }
             public Toggle toggle { get { return m_Toggle; } set { m_Toggle = value; } }
@@ -155,12 +156,12 @@ namespace UnityEngine.UI
 
         // Text to be used as a caption for the current value. It's not required, but it's kept here for convenience.
         [SerializeField]
-        private Text m_CaptionText;
+        private TextMeshProUGUI m_CaptionText;
 
         /// <summary>
         /// The Text component to hold the text of the currently selected option.
         /// </summary>
-        public Text captionText { get { return m_CaptionText; } set { m_CaptionText = value; RefreshShownValue(); } }
+        public TextMeshProUGUI captionText { get { return m_CaptionText; } set { m_CaptionText = value; RefreshShownValue(); } }
 
         [SerializeField]
         private Image m_CaptionImage;
@@ -173,12 +174,12 @@ namespace UnityEngine.UI
         [Space]
 
         [SerializeField]
-        private Text m_ItemText;
+        private TextMeshProUGUI m_ItemText;
 
         /// <summary>
         /// The Text component to hold the text of the item.
         /// </summary>
-        public Text itemText { get { return m_ItemText; } set { m_ItemText = value; RefreshShownValue(); } }
+        public TextMeshProUGUI itemText { get { return m_ItemText; } set { m_ItemText = value; RefreshShownValue(); } }
 
         [SerializeField]
         private Image m_ItemImage;
@@ -437,65 +438,79 @@ namespace UnityEngine.UI
 
             set
             {
-                if (Application.isPlaying && (value == m_Value || options.Count == 0))
-                    return;
+                Set(value);
+            }
+        }
 
-                if (AllowMultiSelect)
+        /// <summary>
+        /// Set the value of Dropdown without invoking callbacks.
+        /// </summary>
+        /// <param name="input"> The new value for the Dropdown. </param>
+        public void SetValueWithoutNotify(uint input)
+        {
+            Set(input, false);
+        }
+
+        void Set(uint value, bool sendCallback = true)
+        {
+            if (Application.isPlaying && (value == m_Value || options.Count == 0))
+                return;
+            if (AllowMultiSelect)
+            {
+                // If we invert m_Value and mask it with 'value'
+                // we will have the bits that have changed
+                //
+                // Here's how this works:
+                //
+                // so lets say m_Value = 5  00000101
+                // and lets say value is 6  00000110
+                // so options[1] is added and options[0] is removed
+                // ~m_Value & value == 11111010 &
+                //                     00000110
+                //                     --------
+                //                     00000010 <-- index 1 (option #2)
+                // m_Value & ~value == 00000101
+                //                     11111001
+                //                     --------
+                //                     00000001 <-- index 0 (option #1)
+                uint added_mask = ~m_Value & value;
+                uint removed_mask = m_Value & ~value;
+                updateOptionsState(added_mask, removed_mask, sendCallback);
+                if (m_Dropdown != null)
                 {
-                    // If we invert m_Value and mask it with 'value'
-                    // we will have the bits that have changed
+                    // setting the value will close an open dropdown
+                    // this way when it is opened back up, the toggles
+                    // will reflect the new state.
                     //
-                    // Here's how this works:
+                    // If we set the toggle state here, OnSelected()
+                    // will be called and we will be here all over again.
                     //
-                    // so lets say m_Value = 5  00000101
-                    // and lets say value is 6  00000110
-                    // so options[1] is added and options[0] is removed
-
-                    // ~m_Value & value == 11111010 &
-                    //                     00000110
-                    //                     --------
-                    //                     00000010 <-- index 1 (option #2)
-
-                    // m_Value & ~value == 00000101
-                    //                     11111001
-                    //                     --------
-                    //                     00000001 <-- index 0 (option #1)
-
-                    uint added_mask = ~m_Value & value;
-                    uint removed_mask = m_Value & ~value;
-                    updateOptionsState(added_mask, removed_mask);
-
-                    if (m_Dropdown != null)
-                    {
-                        // setting the value will close an open dropdown
-                        // this way when it is opened back up, the toggles
-                        // will reflect the new state.
-                        //
-                        // If we set the toggle state here, OnSelected()
-                        // will be called and we will be here all over again.
-                        //
-                        // I guess we could remove the event listener temporarily
-                        // and then set the toggle values to avoid closing an already
-                        // open box but I think this is an edge case. 
-                        Hide();
-                    }
+                    // I guess we could remove the event listener temporarily
+                    // and then set the toggle values to avoid closing an already
+                    // open box but I think this is an edge case. 
+                    Hide();
                 }
-                else
+            }
+            else
+            {
+                if (sendCallback)
                 {
                     m_OnItemDeselected.Invoke(m_Value);
                     m_OnItemSelected.Invoke(value);
                 }
+            }
+            m_Value = value;
+            RefreshShownValue();
 
-                m_Value = value;
-                RefreshShownValue();
-
+            if (sendCallback)
+            {
                 // Notify all listeners
                 UISystemProfilerApi.AddMarker("DropdownEx.value", this);
                 m_OnValueChanged.Invoke(m_Value);
             }
         }
 
-        protected virtual void updateOptionsState(uint added, uint removed)
+        protected virtual void updateOptionsState(uint added, uint removed, bool sendCallback = true)
         {
             uint index = 0;
             while (added > 0)
@@ -503,7 +518,10 @@ namespace UnityEngine.UI
                 if ((added & 0x01) == 0x01)
                 {
                     options[(int)index].selected = true;
-                    m_OnItemSelected.Invoke(index);
+                    if (sendCallback)
+                    {
+                        m_OnItemSelected.Invoke(index);
+                    }
                 }
 
                 index++;
@@ -516,13 +534,17 @@ namespace UnityEngine.UI
                 if ((removed & 0x01) == 0x01)
                 {
                     options[(int)index].selected = false;
-                    m_OnItemDeselected.Invoke(index);
+                    if (sendCallback)
+                    {
+                        m_OnItemDeselected.Invoke(index);
+                    }
                 }
 
                 index++;
                 removed >>= 0x01;
             }
         }
+
 
         public IEnumerable<OptionData> SelectedOptions
         {
